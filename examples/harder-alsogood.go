@@ -7,11 +7,28 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/mesilliac/pulse-simple" // pulse-simple
+	"github.com/mjibson/go-dsp/wav"
 	"math"
+	"os"
 )
 
 func main() {
-	ss := pulse.SampleSpec{pulse.SAMPLE_FLOAT32LE, 44100, 1}
+	if len(os.Args) < 2 {
+		os.Exit(1)
+	}
+	f, err := os.Open(os.Args[1])
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	w, err := wav.New(f)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	fmt.Println(w.SampleRate)
+	fmt.Println(w.BitsPerSample)
+	ss := pulse.SampleSpec{pulse.SAMPLE_FLOAT32LE, w.SampleRate * 69 / uint32(w.BitsPerSample), 1}
 	pb, err := pulse.Playback("pulse-simple test", "playback test", &ss)
 	defer pb.Free()
 	defer pb.Drain()
@@ -19,23 +36,20 @@ func main() {
 		fmt.Printf("Could not create playback stream: %s\n", err)
 		return
 	}
-	playsine(pb, &ss)
+	playwav(pb, &ss, w)
 }
 
-func playsine(s *pulse.Stream, ss *pulse.SampleSpec) {
-	num_notes := 5
-	f := []float64{220, 247, 277, 294, 330}
-	n := []string{"A3", "B3", "C#4", "D4", "E4"}
-	r := float64(ss.Rate)
+func playwav(s *pulse.Stream, ss *pulse.SampleSpec, w *wav.Wav) {
 	data := make([]byte, 4*ss.Rate)
-	tau := 2 * math.Pi
-	for j := 0; j < num_notes; j++ {
-		fmt.Printf("%v\n", n[j])
+	for {
 		for i := 0; i < int(ss.Rate); i++ {
-			// (f) Hz sine wave, with 0.5Hz sine envelope over 1 second duration
-			sample := float32((math.Sin(tau*f[j]*float64(i)/r) / 3.0) *
-				math.Sin((tau/2.0)*float64(i)/r))
-			bits := math.Float32bits(sample)
+			sample, err := w.ReadFloats(1)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			bits := math.Float32bits(sample[0])
+
 			binary.LittleEndian.PutUint32(data[4*i:4*i+4], bits)
 		}
 		s.Write(data)

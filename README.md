@@ -1,6 +1,9 @@
 pulse-simple
 ============
 
+## Note from Adam
+In `./examples` I have added things to play .wav files at various speeds. I should render these speeds and upload them to google music or something.
+
 Cgo bindings to PulseAudio's Simple API,
 for easily playing or capturing raw audio.
 
